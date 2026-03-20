@@ -1,0 +1,147 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function getProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasProfile() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isOwnerAdmin() {
+      return isAuthenticated() && 
+        (
+          (request.auth.token.email == "alyssabernadette.tuliao@neu.edu.ph" && request.auth.token.email_verified == true) ||
+          (hasProfile() && getProfile().role == 'owner-admin')
+        );
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (
+          isOwnerAdmin() || 
+          (hasProfile() && getProfile().role == 'admin')
+        );
+    }
+    
+    function isNotBlocked() {
+      return isAuthenticated() && hasProfile() && getProfile().isBlocked != true;
+    }
+
+    function isPreauthorized(email) {
+      return exists(/databases/$(database)/documents/preauthorized_emails/$(email));
+    }
+    
+    function getPreauthorizedRole(email) {
+      return get(/databases/$(database)/documents/preauthorized_emails/$(email)).data.role;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'name', 'role', 'isBlocked', 'createdAt']) &&
+             data.uid is string &&
+             data.email is string &&
+             data.name is string &&
+             data.role in ['student', 'admin', 'owner-admin'] &&
+             data.isBlocked is bool &&
+             (!('program' in data) || data.program is string) &&
+             (!('isArchived' in data) || data.isArchived is bool);
+    }
+
+    function isValidDocument(data) {
+      return data.keys().hasAll(['title', 'category', 'fileUrl', 'fileSize', 'uploadedBy', 'createdAt', 'updatedAt', 'allowedPrograms', 'downloadCount']) &&
+             data.title is string &&
+             data.category is string &&
+             data.fileUrl is string &&
+             data.fileSize is string &&
+             data.uploadedBy is string &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp &&
+             data.allowedPrograms is list &&
+             data.downloadCount is number &&
+             (!('isArchived' in data) || data.isArchived is bool);
+    }
+
+    function isValidLog(data) {
+      return data.keys().hasAll(['userId', 'documentId', 'timestamp']) &&
+             data.userId == request.auth.uid &&
+             data.documentId is string &&
+             data.timestamp is string;
+    }
+
+    // ===============================================================
+    // Users collection
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isUser(userId) || isAdmin();
+      
+      allow create: if isUser(userId) && 
+        isValidUser(request.resource.data) &&
+        (
+          (isOwnerAdmin() && request.resource.data.role == 'owner-admin') ||
+          (isPreauthorized(request.resource.data.email) && request.resource.data.role == getPreauthorizedRole(request.resource.data.email)) ||
+          (request.resource.data.role == 'student')
+        ) &&
+        request.resource.data.isBlocked == false &&
+        (!('isArchived' in request.resource.data) || request.resource.data.isArchived == false);
+        
+      allow update: if (isUser(userId) && 
+          (
+            (request.auth.token.email == "alyssabernadette.tuliao@neu.edu.ph" && request.resource.data.role == 'owner-admin') ||
+            request.resource.data.role == resource.data.role
+          ) && 
+          request.resource.data.isBlocked == resource.data.isBlocked &&
+          (!('isArchived' in request.resource.data) || request.resource.data.isArchived == resource.data.isArchived)) || 
+        (isOwnerAdmin() && isValidUser(request.resource.data)) || 
+        (isAdmin() && 
+         resource.data.role != 'owner-admin' && 
+         resource.data.email != "alyssabernadette.tuliao@neu.edu.ph" &&
+         request.resource.data.role != 'owner-admin' &&
+         isValidUser(request.resource.data));
+
+      allow delete: if isOwnerAdmin();
+    }
+
+    // ===============================================================
+    // Documents collection
+    // ===============================================================
+    match /documents/{docId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isNotBlocked() && isValidDocument(request.resource.data) && (!('isArchived' in request.resource.data) || request.resource.data.isArchived == false);
+      allow update: if (isAdmin() && isNotBlocked() && isValidDocument(request.resource.data)) || 
+                      (isAuthenticated() && isNotBlocked() && 
+                       (!('allowedPrograms' in resource.data) || getProfile().program in resource.data.allowedPrograms) &&
+                       (!('isArchived' in resource.data) || resource.data.isArchived == false) &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['downloadCount']) &&
+                       request.resource.data.downloadCount == resource.data.downloadCount + 1);
+      allow delete: if isAdmin() && isNotBlocked();
+    }
+
+    // ===============================================================
+    // Logs collection
+    // ===============================================================
+    match /logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && isNotBlocked() && isValidLog(request.resource.data);
+    }
+
+    // ===============================================================
+    // Pre-authorized emails collection
+    // ===============================================================
+    match /preauthorized_emails/{email} {
+      allow read: if isAdmin() || (isAuthenticated() && request.auth.token.email == email);
+      allow write: if isOwnerAdmin();
+    }
+  }
+}

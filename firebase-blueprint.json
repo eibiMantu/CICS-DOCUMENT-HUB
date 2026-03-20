@@ -1,0 +1,78 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "student", "owner-admin", "professor"] },
+        "program": { "type": "string", "description": "Undergraduate program" },
+        "isBlocked": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "PreauthorizedEmail": {
+      "title": "PreauthorizedEmail",
+      "description": "Emails pre-approved for admin/professor role",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "professor"] },
+        "addedBy": { "type": "string" },
+        "addedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "role"]
+    },
+    "Document": {
+      "title": "Document",
+      "description": "CICS PDF document metadata",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string", "enum": ["Curriculum", "Manual", "Forms", "Guide", "Academic"] },
+        "fileUrl": { "type": "string", "format": "uri" },
+        "fileSize": { "type": "string" },
+        "uploadedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "downloadCount": { "type": "integer" },
+        "allowedPrograms": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["title", "category", "fileUrl", "allowedPrograms"]
+    },
+    "Log": {
+      "title": "Log",
+      "description": "Activity log for document downloads",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "documentId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "documentId", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/documents/{documentId}": {
+      "schema": "Document",
+      "description": "Document metadata"
+    },
+    "/logs/{logId}": {
+      "schema": "Log",
+      "description": "Download activity logs"
+    },
+    "/preauthorized_emails/{email}": {
+      "schema": "PreauthorizedEmail",
+      "description": "Pre-authorized admin/professor emails"
+    }
+  }
+}
