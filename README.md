@@ -6,9 +6,12 @@
 
 This contains everything you need to run your app locally.
 
-View your app in AI Studio: https://ai.studio/apps/e364671d-5ad1-4b56-a70f-fe55272b387a
+View app in AI Studio: https://ai.studio/apps/e364671d-5ad1-4b56-a70f-fe55272b387a
 
 https://ais-pre-evssah5wccllyugrxjllzn-535479133175.asia-east1.run.app
+
+View app in Vercel:
+https://cics-document-hub-one.vercel.app/login
 
 ## Run Locally
 
